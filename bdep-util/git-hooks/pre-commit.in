@@ -1,0 +1,23 @@
+#! /usr/bin/env bash
+
+# file      : bdep-util/git-hooks/pre-commit.in
+# license   : MIT; see accompanying LICENSE file
+
+# Forward the execution to the pre-commit script implementation.
+#
+# To enable the hooks globally run, for example:
+#
+# $ git config --global core.hooksPath /usr/local/bin/bdep-git-hooks
+#
+# Notes:
+#
+# - git passes no parameters to this kind of hooks.
+#
+# - git changes CWD to the git repository root directory for the hook process.
+#
+# - git command running from inside the hook sees files that should be
+#   auto-staged due to the -a git-commit option or similar as already staged.
+#
+trap 'exit 1' ERR
+
+source "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../bdep-git-pre-commit"

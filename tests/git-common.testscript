@@ -1,0 +1,17 @@
+# file      : tests/git-common.testscript
+# license   : MIT; see accompanying LICENSE file
+
+# Set commonly-used variables and create an empty git repository that will be
+# copied by subsequent tests and scope setup commands.
+#
+g  = git >! 2>&1
+gp = $g -C prj
+ga = $gp add
+gr = $gp rm
+
++$g init prj &prj/***
+
++$gp config user.name  'Test Script'
++$gp config user.email 'testscript@example.com'
+
+clone_prj = cp --no-cleanup -r ../prj ./ &prj/***

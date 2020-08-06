@@ -1,0 +1,6 @@
+: 1
+summary: extra build2 project management utilities
+
+:
+role: prerequisite
+location: ../libbutl.bash.git##HEAD

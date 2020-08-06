@@ -1,0 +1,6 @@
+# file      : build/root.build
+# license   : MIT; see accompanying LICENSE file
+
+# Bash.
+#
+using bash

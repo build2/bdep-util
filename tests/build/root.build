@@ -1,0 +1,12 @@
+# file      : tests/build/root.build
+# license   : MIT; see accompanying LICENSE file
+
+# Setup the targets that we are testing.
+#
+import git_pre_commit = bdep-util%exe{bdep-git-pre-commit}
+
+import git_pre_commit_version_check = \
+  bdep-util%exe{bdep-git-pre-commit-version-check}
+
+import git_pre_commit_copyright_check = \
+  bdep-util%exe{bdep-git-pre-commit-copyright-check}

@@ -1,0 +1,13 @@
+# file      : tests/git-pre-commit-common.testscript
+# license   : MIT; see accompanying LICENSE file
+
+# Set commonly-used variables and configure git to call the hook being tested.
+# Assume that git-common.testscript is already included.
+#
+gc = $gp commit -a --allow-empty-message -m ''
+
+hooks_dir=$~/hooks
++mkdir $hooks_dir
++$gp config core.hooksPath $hooks_dir
+
++ln -s $0 $hooks_dir/pre-commit

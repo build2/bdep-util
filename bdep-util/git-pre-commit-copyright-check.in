@@ -1,0 +1,73 @@
+#! /usr/bin/env bash
+
+# file      : bdep-util/git-pre-commit-copyright-check.in
+# license   : MIT; see accompanying LICENSE file
+
+# Check copyright notices in the COPYRIGHT and LICENSE files and issue a
+# warning if they don't include the current year.
+#
+# Specifically, look first for COPYRIGHT and then LICENSE in the root
+# directory and all subdirectories in a project.
+#
+# Then in each file look for the first line matching the:
+#
+# ^Copyright (\([cC]\))? ...
+#
+# Regex, where "..."  matches various year lists/ranges (e.g., "2010", "2010,
+# 2011", "2010-2011", and their combinations; see the pattern below for
+# details). Specifically, we don't consider Copyright notices that:
+#
+#   - don't start at the very beginning of a line (indented, etc)
+#   - contain something other than years prior to the last year (names, etc)
+#   - wrap over multiple lines (long year list, etc)
+#
+# Note also that the current year is obtained in the UTC timezone.
+#
+trap 'exit 1' ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+# Recursively collect the COPYRIGHT and LICENSE files, skipping the LICENSE
+# files in directories that contain the COPYRIGHT file.
+#
+# @@ Note that for now we assume that there are no spaces in the project file
+#    and directory names.
+#
+files=()
+
+fs=($(find . \( -type f -o -type l \) -name COPYRIGHT))
+
+for f in "${fs[@]}"; do
+  files+=("$f")
+done
+
+fs=($(find . \( -type f -o -type l \) -name LICENSE))
+
+for f in "${fs[@]}"; do
+  d="$(dirname "$f")"
+
+  if [ ! -f "$d/COPYRIGHT" ]; then
+    files+=("$f")
+  fi
+done
+
+# Grep for the Copyright notice in the collected files and issue the warning
+# if it is present and is outdated.
+#
+# @@ We should probably skip the COPYRIGHT/LICENSE files whose parent
+#    directories don't (recursively) contain staged files (think of projects
+#    with multiple packages, bundled third-party code, etc). Note that we can
+#    obtain the staged file list with the `git diff --name-only --cached`
+#    command.
+#
+current_year="$(date -u +'%Y')"
+
+for f in "${files[@]}"; do
+  year="$(sed -n -re 's%^Copyright( +\([cC]\))?[ 0-9,-]*[ ,-]([0-9]{4}).*$%\2%p' "$f" | head -n 1)"
+
+  if [ -n "$year" -a "$year" != "$current_year" ]; then
+    info "WARNING: last copyright year in '${f#./}' is $year"
+  fi
+done

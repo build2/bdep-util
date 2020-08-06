@@ -1,0 +1,21 @@
+: 1
+name: bdep-util
+version: 0.14.0-a.0.z
+project: build2
+summary: extra build2 project management utilities
+license: MIT
+topics: project dependency management, build toolchain
+description-file: README
+changes-file: NEWS
+url: https://build2.org
+doc-url: https://build2.org/doc.xhtml
+src-url: https://git.build2.org/cgit/bdep-util/tree/
+email: users@build2.org
+build-warning-email: builds@build2.org
+builds: all
+builds: -windows ; Requires bash.
+builds: -macos   ; Requires bash >= 4.3.
+requires: bash >= 4.3
+depends: * build2 >= 0.13.0
+depends: * bpkg >= 0.13.0
+depends: libbutl.bash [0.14.0-a.0.1 0.14.0-a.1)

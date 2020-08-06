@@ -1,0 +1,263 @@
+# file      : tests/git-pre-commit-version-check.testscript
+# license   : MIT; see accompanying LICENSE file
+
+.include git-common.testscript git-pre-commit-common.testscript
+
++bash --version >&2 2>! # For troubleshooting.
+
+: multi-package-project
+:
+{
+  $clone_prj;
+
+  touch prj/TODO;
+  $ga .;
+  $gc;                       # Initial commit.
+
+  echo '@@' >=prj/TODO;
+  $gc;                       # No committed packages.manifest.
+
+  cat <<EOI >=prj/packages.manifest;
+    : 1
+    location: libfoo/
+    :
+    location: libbar/
+    :
+    location: libbaz/
+    EOI
+  $ga .;
+
+  $gc 2>>EOE;                # packages.manifest is staged.
+    warning: package manifest file libfoo/manifest does not exist
+    warning: package manifest file libbar/manifest does not exist
+    warning: package manifest file libbaz/manifest does not exist
+    EOE
+
+  echo '@@ todo' >=prj/TODO;
+
+  # packages.manifest is committed but there are no package manifests.
+  #
+  $gc 2>>EOE;
+    warning: package manifest file libfoo/manifest does not exist
+    warning: package manifest file libbar/manifest does not exist
+    warning: package manifest file libbaz/manifest does not exist
+    EOE
+
+  mkdir prj/libfoo prj/libbar prj/libbaz;
+  cat <<EOI >=prj/libfoo/manifest;
+    : 1
+    name: libfoo
+    version: 1.2.3-a.1.z
+    summary: Foo
+    EOI
+  cat <<EOI >=prj/libbar/manifest;
+    : 1
+    name: libbar
+    version: 1.2.3
+    summary: Bar
+    EOI
+  cat <<EOI >=prj/libbaz/manifest;
+    : 1
+    name: libbaz
+    version: 0+1
+    summary: Baz
+    EOI
+  $ga .;
+
+  $gc;                       # Same as above plus the package manifests are
+                             # staged.
+
+  echo '@@ TODO' >=prj/TODO;
+
+  $gc;                       # Packages are committed but the staged change
+                             # goes outside the package directories.
+
+  touch prj/libfoo/TODO prj/libbar/TODO prj/libbaz/TODO;
+  $ga libfoo/TODO;
+
+  $gc;                       # Package with an open version (snapshot) is
+                             # changed.
+
+  $ga libbar/TODO;
+
+  $gc 2>>EOE != 0;           # Package with a final version is changed.
+    error: changing released package libbar 1.2.3 without version increment
+      info: use --no-verify git option to suppress
+    EOE
+
+  sed -i -e 's/^(version:).+$/\1 1.2.4-a.1.z/' prj/libbar/manifest;
+
+  $gc;                       # Open package development circle.
+
+  echo '@@' >=prj/libbar/TODO;
+
+  $gc;                       # Development cycle is open.
+
+  $ga libbaz/TODO;
+
+  $gc 2>>EOE != 0;           # Package with a stub version is changed.
+    error: changing released package libbaz 0+1 without version increment
+      info: use --no-verify git option to suppress
+    EOE
+
+  sed -i -e 's/^(version:).+$/\1 0+2/' prj/libbaz/manifest;
+
+  $gc;                       # Release the stub package revision.
+
+  sed -i -e 's/^(version:).+$/\1 1.2.3/' prj/libfoo/manifest;
+
+  $gc;                       # Release new version.
+
+  echo '@@ todo' >=prj/libfoo/TODO;
+
+  $gc 2>>EOE != 0;           # Package with a final version is changed.
+    error: changing released package libfoo 1.2.3 without version increment
+      info: use --no-verify git option to suppress
+    EOE
+
+  $gr libfoo/manifest &!prj/libfoo/manifest;
+
+  $gc 2>>EOE;                # The manifest removal is staged (not a package now).
+    warning: package manifest file libfoo/manifest does not exist
+    EOE
+
+  sed -i -e 's/^(version:).+$/\1 1.2.4/' prj/libbar/manifest;
+
+  $gc 2>>EOE;                # Release new version.
+    warning: package manifest file libfoo/manifest does not exist
+    EOE
+
+  echo '@@ todo' >=prj/libbar/TODO;
+
+  $gc 2>>EOE != 0;           # Package with a final version is changed.
+    warning: package manifest file libfoo/manifest does not exist
+    error: changing released package libbar 1.2.4 without version increment
+      info: use --no-verify git option to suppress
+    EOE
+
+  cat <<EOI >=prj/packages.manifest;
+    : 1
+    location: libbaz/
+    EOI
+
+  $gc;                       # The package removal from packages.manifest is
+                             # staged, so it's not a package anymore.
+
+  cat <<EOI >=prj/packages.manifest;
+    : 1
+    location: lib/baz/
+    EOI
+  mkdir prj/lib;
+  mv prj/libbaz prj/lib/baz;
+  $ga .;
+
+  $gc 2>>EOE != 0;           # Package with a stub version is moved.
+    error: moving released package libbaz 0+2
+      info: use --no-verify git option to suppress
+    EOE
+
+  sed -i -e 's/^(version:).+$/\1 0+3/' prj/lib/baz/manifest;
+
+  $gc                        # Release the stub package revision.
+}
+
+: single-package-project
+:
+{
+  $clone_prj;
+
+  cat <<EOI >=prj/manifest;
+    : 1
+    name: foo
+    version: 1.2.3
+    summary: Foo
+    EOI
+  touch prj/TODO;
+  $ga .;
+
+  $gc 2>|;                       # No committed manifest.
+
+  echo '@@' >=prj/TODO;
+
+  $gc 2>>EOE != 0;           # Package with a final version is changed.
+    error: changing released package foo 1.2.3 without version increment
+      info: use --no-verify git option to suppress
+    EOE
+
+  sed -i -e 's/^(version:).+$/\1 1.2.4-a.1.123/' prj/manifest;
+
+  $gc;                       # Open package development circle.
+
+  echo '@@ todo' >=prj/TODO;
+
+  $gc;                       # Development cycle is open.
+
+  sed -i -e 's/^(version:).+$/\1 1.2.4/' prj/manifest;
+
+  $gc;                       # Release new version.
+
+  echo '@@ TODO' >=prj/TODO;
+
+  $gc 2>>EOE != 0;           # Package with a final version is changed.
+    error: changing released package foo 1.2.4 without version increment
+      info: use --no-verify git option to suppress
+    EOE
+
+  $gr manifest &!prj/manifest;
+
+  # Make sure there is no warning.
+  #
+  $gc 2>:''                  # The manifest removal is staged, so it's not a
+                             # package anymore.
+}
+
+: warnings
+:
+{
+  +$clone_prj
+
+  : no-name
+  :
+  {
+    $clone_prj;
+
+    cat <<EOI >=prj/manifest;
+      : 1
+      summary: Foo
+      EOI
+    $ga .;
+
+    $gc 2>"warning: package name is missing in ./manifest"
+  }
+
+  : no-version
+  :
+  {
+    $clone_prj;
+
+    cat <<EOI >=prj/manifest;
+      : 1
+      name: libfoo
+      summary: Foo
+      EOI
+    $ga .;
+
+    $gc 2>"warning: package version is missing in ./manifest"
+  }
+
+  : invalid-version
+  :
+  {
+    $clone_prj;
+
+    cat <<EOI >=prj/manifest;
+      : 1
+      name: libfoo
+      version: abc
+      summary: Foo
+      EOI
+    $ga .;
+
+    $gc 2>"warning: package version 'abc' in ./manifest is not a valid standard version"
+  }
+}

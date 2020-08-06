@@ -1,0 +1,17 @@
+#! /usr/bin/env bash
+
+# file      : bdep-util/git-pre-commit.in
+# license   : MIT; see accompanying LICENSE file
+
+# Execute various pre-commit scripts in a git repository.
+#
+trap 'exit 1' ERR
+
+scr_dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+# Run each hook checking the exit status and bailing out if unsuccessful. We
+# can just exec the last one.
+#
+"$scr_dir/bdep-git-pre-commit-version-check"
+
+exec "$scr_dir/bdep-git-pre-commit-copyright-check"

@@ -1,0 +1,19 @@
+# file      : build/export.build
+# license   : MIT; see accompanying LICENSE file
+
+$out_root/
+{
+  include bdep-util/
+}
+
+switch $import.target
+{
+  case exe{bdep-git-pre-commit}
+    export $out_root/bdep-util/exe{bdep-git-pre-commit}
+
+  case exe{bdep-git-pre-commit-version-check}
+    export $out_root/bdep-util/exe{bdep-git-pre-commit-version-check}
+
+  case exe{bdep-git-pre-commit-copyright-check}
+    export $out_root/bdep-util/exe{bdep-git-pre-commit-copyright-check}
+}

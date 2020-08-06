@@ -1,0 +1,38 @@
+# file      : bdep-util/buildfile
+# license   : MIT; see accompanying LICENSE file
+
+import mods  = libbutl.bash%bash{manifest-parser}
+import mods += libbutl.bash%bash{standard-version}
+
+# @@ TMP Note that git-hooks/pre-commit, bdep-git-pre-commit, and
+#    bdep-git-pre-commit-copyright-check have no dependencies on any bash
+#    module. However, we add such dependencies for the bash module rule to
+#    match. Eventually, there will be a better way to achieve that (hints).
+#
+
+# Note that git-hooks/pre-commit script just sources bdep-git-pre-commit. The
+# reason to have both scripts is to be able to configure git's pre-commit hook
+# via the core.hooksPath configuration value (should refer, for example, to
+# the /usr/local/bin/bdep-git-hooks directory) and to import
+# bdep-git-pre-commit, for example, for testing the installed hook.
+#
+git-hooks/
+{
+  exe{pre-commit}: in{pre-commit} ../exe{bdep-git-pre-commit} $mods
+}
+
+exe{bdep-git-pre-commit}: in{git-pre-commit}                       \
+                          exe{bdep-git-pre-commit-version-check    \
+                              bdep-git-pre-commit-copyright-check} \
+                          $mods
+
+exe{bdep-git-pre-commit-version-check}: in{git-pre-commit-version-check} \
+                                        $mods
+
+exe{bdep-git-pre-commit-copyright-check}: in{git-pre-commit-copyright-check} \
+                                          $mods
+
+# Install the git pre-commit hook into bdep-git-hooks/ subdirectory of, say,
+# /usr/bin/.
+#
+git-hooks/exe{pre-commit}: install = bin/bdep-git-hooks/

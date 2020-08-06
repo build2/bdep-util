@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+
+# file      : bdep-util/git-pre-commit-version-check.in
+# license   : MIT; see accompanying LICENSE file
+
+# Check that the changes being commited are compatible with the version state
+# of the package(s).
+#
+# Specifically, fail if there are any changes staged for the released packages
+# (the version is final or a stub) unless an appropriate version change is
+# also staged.
+#
+# To achieve this, extract and compare versions corresponding to two states:
+# the latest revision in the current branch (committed) and the potential
+# result of the forthcoming commit (staged).
+#
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+@import libbutl/manifest-parser@
+@import libbutl/standard-version@
+
+# Note that here and below a file in the existing repository revision is
+# referred to as '<rev>:<path>' (for example 'HEAD:manifest') and in the
+# staged revision as just ':<path>', where the path is relative to the project
+# root directory (see gitrevisions(7) for details).
+
+# Return 0 if the specified file revision exists and 1 otherwise.
+#
+function file_exists () # [<rev>]:<path>
+{
+  local f="$1"
+
+  if git cat-file -e "$f" 2>/dev/null; then # Repository object exists?
+    local t
+    t="$(git cat-file -t "$f")"
+
+    if [ "$t" == "blob" ]; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+# Wrap libbutl manifest parsing functions to parse manifest revisions and to
+# shorten names. Assumes that the specified manifest revision exists (for
+# example, this is checked with the above file_exists() function).
+#
+function manifest_parser_start () # [<rev>]:<path>
+{
+  butl_manifest_parser_start < <(git cat-file -p "$1")
+  manifest_parser_ofd="$butl_manifest_parser_ofd"
+}
+
+function manifest_parser_finish ()
+{
+  butl_manifest_parser_finish
+}
+
+# Find packages in the repository revision saving them into the specified by
+# name associative array (needs to be declared prior to the function call)
+# mapping the package names to the version/path pairs (for example "libfoo" ->
+# "1.2.3 lib/foo"). Optionally, return only released packages.
+#
+# Note that the repository revisions can be in arbitrary states and the
+# package manifests may not be necessarily present or valid. Thus, we consider
+# a package to be present in the repository revision if its manifest
+# (potentially referred to via the packages.manifest file) exists and contains
+# a non-empty package name and the valid package version. Otherwise, for the
+# staged revision, if it looks like it should be a package but something is
+# missing, we warn.
+#
+function find_packages () # <rev> <result> [<released>]
+{
+  local rev="$1"
+  local -n r="$2"
+  local rel="$3"
+
+  # Collect the potential package directories.
+  #
+  local ds=()
+  local n v
+  if file_exists "$rev:packages.manifest"; then
+    manifest_parser_start "$rev:packages.manifest"
+
+    while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+      if [ "$n" == "location" ]; then
+        ds+=("${v%/}")
+      fi
+    done
+
+    manifest_parser_finish
+  else
+    ds+=(.)
+  fi
+
+  # Fill the resulting package map.
+  #
+  local d
+  for d in "${ds[@]}"; do
+    local m="$d/manifest"
+    local mr="$rev:$m"
+
+    if ! file_exists "$mr"; then
+
+      # Don't warn about absence of the root package manifest file, since this
+      # git repository may well not be a build2 package.
+      #
+      if [ -z "$rev" -a "$d" != "." ]; then
+        info "warning: package manifest file $m does not exist"
+      fi
+      continue
+    fi
+
+    local name=
+    local version=
+
+    manifest_parser_start "$mr"
+
+    while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+      case "$n" in
+        name)    name="$v"    ;;
+        version) version="$v" ;;
+      esac
+    done
+
+    manifest_parser_finish
+
+    # Check if a non-empty package name is present.
+    #
+    if [ -z "$name" ]; then
+      if [ -z "$rev" ]; then
+        info "warning: package name is missing in $m"
+      fi
+      continue
+    fi
+
+    # Check if a non-empty package version is present.
+    #
+    if [ -z "$version" ]; then
+      if [ -z "$rev" ]; then
+        info "warning: package version is missing in $m"
+      fi
+      continue
+    fi
+
+    # Check if the package version is a valid standard version.
+    #
+    if ! butl_standard_version --is-version --is-not-earliest "$version"; then
+      if [ -z "$rev" ]; then
+        info "warning: package version '$version' in $m is not a valid standard version"
+      fi
+      continue
+    fi
+
+    # Optionally, skip the unreleased version.
+    #
+    if [ ! $rel ] || butl_standard_version --is-not-snapshot "$version"; then
+      r["$name"]="$version $d"
+    fi
+  done
+}
+
+# Collect the commited released packages.
+#
+declare -A committed_packages
+find_packages 'HEAD' committed_packages true
+
+# Collect all the staged packages.
+#
+# Note that while we could bail out if there are no committed released
+# packages, we will still collect the staged packages to potentially issue
+# warnings about some of the manifest errors (empty package name, etc).
+#
+declare -A staged_packages
+find_packages '' staged_packages
+
+# Iterate through the committed released packages and fail if there is a
+# change but no version change staged for this package.
+#
+for p in "${!committed_packages[@]}"; do
+  read cv cd <<<"${committed_packages[$p]}"
+
+  # Check if this is still a package in the staged revision.
+  #
+  if [[ -v staged_packages["$p"] ]]; then
+    read sv sd <<<"${staged_packages[$p]}"
+
+    # If the package version didn't change, then check for any package changes
+    # and fail if there are any.
+    #
+    if [ "$sv" == "$cv" ]; then
+
+      # Check that the package directory didn't change.
+      #
+      # If the package is moved, then detecting its changes becomes too
+      # complicated and we don't want to miss any. Let's keep it simple and
+      # deny moving the released packages (the user can always suppress the
+      # verification with --no-verify anyway).
+      #
+      if [ "$sd" != "$cd" ]; then
+        info "error: moving released package $p $cv"
+        info "  info: use --no-verify git option to suppress"
+        exit 1
+      fi
+
+      # Check if the package has some staged changes in its directory.
+      #
+      if ! git diff-index --cached --quiet HEAD -- "$sd"; then
+        info "error: changing released package $p $cv without version increment"
+        info "  info: use --no-verify git option to suppress"
+        exit 1
+      fi
+    fi
+  fi
+done
