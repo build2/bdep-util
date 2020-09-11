@@ -6,19 +6,15 @@ common{*}: extension = testscript
 
 commons = git-common git-pre-commit-common
 
-./: testscript{* -{$commons}} common{$commons}
+./: testscript{* -{$commons}} common{$commons} \
+    $git_pre_commit                            \
+    $git_pre_commit_version_check              \
+    $git_pre_commit_copyright_check
 
-testscript{git-pre-commit}@./: $git_pre_commit
-{
-  test = $git_pre_commit
-}
+testscript{git-pre-commit}@./: test = $git_pre_commit
 
-testscript{git-pre-commit-version-check}@./: $git_pre_commit_version_check
-{
+testscript{git-pre-commit-version-check}@./: \
   test = $git_pre_commit_version_check
-}
 
-testscript{git-pre-commit-copyright-check}@./: $git_pre_commit_copyright_check
-{
+testscript{git-pre-commit-copyright-check}@./: \
   test = $git_pre_commit_copyright_check
-}
