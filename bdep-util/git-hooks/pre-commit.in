@@ -20,4 +20,4 @@
 #
 trap 'exit 1' ERR
 
-source "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../bdep-git-pre-commit"
+exec "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/../bdep-git-pre-commit"
