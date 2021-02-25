@@ -15,7 +15,10 @@
 # result of the forthcoming commit (staged).
 #
 trap "{ exit 1; }" ERR
-set -o errtrace # Trap ERR in functions.
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 
 function info () { echo "$*" 1>&2; }
 function error () { info "$*"; exit 1; }
@@ -61,10 +64,10 @@ function manifest_parser_finish ()
   butl_manifest_parser_finish
 }
 
-# Find packages in the repository revision saving them into the specified by
-# name associative array (needs to be declared prior to the function call)
-# mapping the package names to the version/path pairs (for example "libfoo" ->
-# "1.2.3 lib/foo"). Optionally, return only released packages.
+# Find packages in the repository revision and print them to stdout as an
+# associative array in the ['<key>']='<value>' per line form, mapping the
+# package names to the version/path pairs (for example "libfoo" -> "1.2.3
+# lib/foo"). Optionally, return only released packages.
 #
 # Note that the repository revisions can be in arbitrary states and the
 # package manifests may not be necessarily present or valid. Thus, we consider
@@ -74,11 +77,10 @@ function manifest_parser_finish ()
 # staged revision, if it looks like it should be a package but something is
 # missing, we warn.
 #
-function find_packages () # <rev> <result> [<released>]
+function find_packages () # <rev> [<released>]
 {
   local rev="$1"
-  local -n r="$2"
-  local rel="$3"
+  local rel="$2"
 
   # Collect the potential package directories.
   #
@@ -100,6 +102,8 @@ function find_packages () # <rev> <result> [<released>]
 
   # Fill the resulting package map.
   #
+  declare -A r
+
   local d
   for d in "${ds[@]}"; do
     local m="$d/manifest"
@@ -163,12 +167,18 @@ function find_packages () # <rev> <result> [<released>]
       r["$name"]="$version $d"
     fi
   done
+
+  # Return the resulting package map.
+  #
+  for k in "${!r[@]}"; do
+    echo "['$k']='${r[$k]}'"
+  done
 }
 
 # Collect the commited released packages.
 #
-declare -A committed_packages
-find_packages 'HEAD' committed_packages true
+find_packages "HEAD" true | readarray -t cp
+eval declare -A committed_packages=("${cp[@]}")
 
 # Collect all the staged packages.
 #
@@ -176,8 +186,8 @@ find_packages 'HEAD' committed_packages true
 # packages, we will still collect the staged packages to potentially issue
 # warnings about some of the manifest errors (empty package name, etc).
 #
-declare -A staged_packages
-find_packages '' staged_packages
+find_packages '' | readarray -t sp
+eval declare -A staged_packages=("${sp[@]}")
 
 # Iterate through the committed released packages and fail if there is a
 # change but no version change staged for this package.
@@ -187,7 +197,7 @@ for p in "${!committed_packages[@]}"; do
 
   # Check if this is still a package in the staged revision.
   #
-  if [[ -v staged_packages["$p"] ]]; then
+  if [[ -v "staged_packages[$p]" ]]; then
     read sv sd <<<"${staged_packages[$p]}"
 
     # If the package version didn't change, then check for any package changes
@@ -210,7 +220,7 @@ for p in "${!committed_packages[@]}"; do
 
       # Check if the package has some staged changes in its directory.
       #
-      if ! git diff-index --cached --quiet HEAD -- "$sd"; then
+      if ! git diff-index --cached --quiet "HEAD" -- "$sd"; then
         info "error: changing released package $p $cv without version increment"
         info "  info: use --no-verify git option to suppress"
         exit 1

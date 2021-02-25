@@ -65,7 +65,7 @@ done
 current_year="$(date -u +'%Y')"
 
 for f in "${files[@]}"; do
-  year="$(sed -n -re 's%^Copyright( +\([cC]\))?[ 0-9,-]*[ ,-]([0-9]{4}).*$%\2%p' "$f" | head -n 1)"
+  year="$(sed -n -re 's%^Copyright( +\([cC]\))?[ 0-9,-]*[ ,-]([0-9]{4}).*$%\2%p' "$f" | sed -n -e '1p')"
 
   if [ -n "$year" -a "$year" != "$current_year" ]; then
     info "WARNING: last copyright year in '${f#./}' is $year"
