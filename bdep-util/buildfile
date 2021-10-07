@@ -18,16 +18,15 @@ import mods += libbutl.bash%bash{standard-version}
 #
 git-hooks/
 {
-  exe{pre-commit}: in{pre-commit} ../exe{bdep-git-pre-commit} $mods
+  exe{pre-commit}: in{pre-commit} $mods
+  exe{pre-commit}: ../exe{bdep-git-pre-commit}: install = true
 }
 
-exe{bdep-git-pre-commit}: in{git-pre-commit}                       \
-                          exe{bdep-git-pre-commit-version-check    \
-                              bdep-git-pre-commit-copyright-check} \
-                          $mods
+exe{bdep-git-pre-commit}: in{git-pre-commit} $mods
+exe{bdep-git-pre-commit}: exe{bdep-git-pre-commit-version-check \
+                              bdep-git-pre-commit-copyright-check}: install = true
 
-exe{bdep-git-pre-commit-version-check}: in{git-pre-commit-version-check} \
-                                        $mods
+exe{bdep-git-pre-commit-version-check}: in{git-pre-commit-version-check} $mods
 
 exe{bdep-git-pre-commit-copyright-check}: in{git-pre-commit-copyright-check} \
                                           $mods
