@@ -7,7 +7,9 @@
 # warning if they don't include the current year.
 #
 # Specifically, look first for COPYRIGHT and then LICENSE in the root
-# directory and all subdirectories in a project.
+# directory and all subdirectories in a project, excluding git submodule
+# subdirectories as well as the COPYRIGHT/LICENSE files that are symlinks
+# pointing into git submodule subdirectories.
 #
 # Then in each file look for the first line matching the:
 #
@@ -24,31 +26,87 @@
 # Note also that the current year is obtained in the UTC timezone.
 #
 trap 'exit 1' ERR
-set -o errtrace # Trap in functions.
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 
 function info () { echo "$*" 1>&2; }
 function error () { info "$*"; exit 1; }
 
+repo="$(pwd)"
+
+# Return the list of project files with the specified name. Skip files in the
+# submodule subdirectories and symlinks which refer to such files.
+#
+function project_files () # <name>
+{
+  local name="$1"
+
+  local f
+  while read f; do
+
+    # Resolve the target file path.
+    #
+    # Specifically, if this is a symlink, then try to resolve it into the
+    # target, recursively, and skip it if it is dangling. Otherwise, this is a
+    # regular file and it is a target.
+    #
+    local t
+    if [[ -L "$f" ]]; then
+
+      # Skip the dangling symlink trying to resolve it recursively.
+      #
+      # Note that readlink silently fails if any of the path components is a
+      # dangling symlink, except for the last component.
+      #
+      # Also note that while readlink is not POSIX, it is present on both
+      # Linux and FreeBSD (which we only care about, currently).
+      #
+      if ! t="$(readlink -f "$f")"; then
+        continue
+      fi
+
+      # Check that the target exists and is a regular file.
+      #
+      if [[ ! -f "$t" ]]; then
+        continue
+      fi
+    else
+      t="$f"
+    fi
+
+    # Check that the resolved target parent directory belongs to the project
+    # repository and skip it if that's not the case.
+    #
+    local r
+    r="$(git -C "$(dirname "$t")" rev-parse --show-toplevel)"
+
+    if [[ "$r" != "$repo" ]]; then
+      continue
+    fi
+
+    echo "$f"
+  done < <(find . \( -type f -o -type l \) -name "$name" -print)
+}
+
 # Recursively collect the COPYRIGHT and LICENSE files, skipping the LICENSE
 # files in directories that contain the COPYRIGHT file.
 #
-# @@ Note that for now we assume that there are no spaces in the project file
-#    and directory names.
-#
 files=()
 
-fs=($(find . \( -type f -o -type l \) -name COPYRIGHT))
+fs=($(project_files COPYRIGHT))
 
 for f in "${fs[@]}"; do
   files+=("$f")
 done
 
-fs=($(find . \( -type f -o -type l \) -name LICENSE))
+fs=($(project_files LICENSE))
 
 for f in "${fs[@]}"; do
   d="$(dirname "$f")"
 
-  if [ ! -f "$d/COPYRIGHT" ]; then
+  if [[ ! -f "$d/COPYRIGHT" ]]; then
     files+=("$f")
   fi
 done
@@ -67,7 +125,13 @@ current_year="$(date -u +'%Y')"
 for f in "${files[@]}"; do
   year="$(sed -n -re 's%^Copyright( +\([cC]\))?[ 0-9,-]*[ ,-]([0-9]{4}).*$%\2%p' "$f" | sed -n -e '1p')"
 
-  if [ -n "$year" -a "$year" != "$current_year" ]; then
-    info "WARNING: last copyright year in '${f#./}' is $year"
+  # Print the 'WARNING:' prefix in bold red, so it doesn't go unnoticed.
+  #
+  if [[ -n "$year" && "$year" != "$current_year" ]]; then
+    bw="\033[1m"    # Bold.
+    nw="\033[0m"    # No weight.
+    rc="\033[0;31m" # Red.
+    nc="\033[0m"    # No color.
+    echo -e "${rc}${bw}WARNING:${nw}${nc} last copyright year in '${f#./}' is $year" 1>&2
   fi
 done
