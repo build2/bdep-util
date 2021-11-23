@@ -36,7 +36,9 @@
     EOI
   $ga .;
 
-  $gc 2>>EOE
-    WARNING: last copyright year in 'LICENSE' is 2019
+  # Note that the 'WARNING:' prefix is printed in bold red.
+  #
+  $gc 2>>~%EOE%
+    %.+WARNING:.+ last copyright year in 'LICENSE' is 2019%
     EOE
 }
