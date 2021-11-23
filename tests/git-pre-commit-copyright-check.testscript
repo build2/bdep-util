@@ -13,8 +13,8 @@
     EOI
   $ga .;
 
-  $gc 2>>EOE;
-    WARNING: last copyright year in 'LICENSE' is 2019
+  $gc 2>>~%EOE%;
+    %.+WARNING:.+ last copyright year in 'LICENSE' is 2019%
     EOE
 
   date +"%Y" | set year;
