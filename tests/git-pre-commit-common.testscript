@@ -4,7 +4,7 @@
 # Set commonly-used variables and configure git to call the hook being tested.
 # Assume that git-common.testscript is already included.
 #
-gc = $gp commit -a --allow-empty-message -m ''
+gc = [cmdline] $gp commit -a --allow-empty-message -m ''
 
 hooks_dir=$~/hooks
 +mkdir $hooks_dir
