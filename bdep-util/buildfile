@@ -4,10 +4,8 @@
 import mods  = libbutl.bash%bash{manifest-parser}
 import mods += libbutl.bash%bash{standard-version}
 
-# @@ TMP Note that git-hooks/pre-commit, bdep-git-pre-commit, and
-#    bdep-git-pre-commit-copyright-check have no dependencies on any bash
-#    module. However, we add such dependencies for the bash module rule to
-#    match. Eventually, there will be a better way to achieve that (hints).
+# @@ TMP Use the hint-based versions of the dependency declarations once the
+#    toolchain requirement is 0.16.0.
 #
 
 # Note that git-hooks/pre-commit script just sources bdep-git-pre-commit. The
@@ -18,15 +16,22 @@ import mods += libbutl.bash%bash{standard-version}
 #
 git-hooks/
 {
+#  [rule_hint=bash] exe{pre-commit}: in{pre-commit}
   exe{pre-commit}: in{pre-commit} $mods
   exe{pre-commit}: ../exe{bdep-git-pre-commit}: install = true
 }
 
+#[rule_hint=bash] exe{bdep-git-pre-commit}: in{git-pre-commit}
 exe{bdep-git-pre-commit}: in{git-pre-commit} $mods
-exe{bdep-git-pre-commit}: exe{bdep-git-pre-commit-version-check \
-                              bdep-git-pre-commit-copyright-check}: install = true
+
+exe{bdep-git-pre-commit}: exe{bdep-git-pre-commit-version-check     \
+                              bdep-git-pre-commit-copyright-check}: \
+  install = true
 
 exe{bdep-git-pre-commit-version-check}: in{git-pre-commit-version-check} $mods
+
+#[rule_hint=bash] \
+#exe{bdep-git-pre-commit-copyright-check}: in{git-pre-commit-copyright-check}
 
 exe{bdep-git-pre-commit-copyright-check}: in{git-pre-commit-copyright-check} \
                                           $mods
