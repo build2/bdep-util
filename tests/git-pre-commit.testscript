@@ -6,19 +6,19 @@
 : version-check
 :
 {
-  $clone_prj;
+  $clone_prj
 
-  cat <<EOI >=prj/manifest;
+  cat <<EOI >=prj/manifest
     : 1
     name: foo
     version: 1.2.3
     summary: Foo
     EOI
-  touch prj/TODO;
-  $ga .;
-  $gc;                       # No committed manifest.
+  touch prj/TODO
+  $ga .
+  $gc                        # No committed manifest.
 
-  echo '@@' >=prj/TODO;
+  echo '@@' >=prj/TODO
 
   $gc 2>>EOE != 0            # Package with a final version is changed.
     error: changing released package foo 1.2.3 without version increment
@@ -29,12 +29,12 @@
 : copyright-check
 :
 {
-  $clone_prj;
+  $clone_prj
 
-  cat <<EOI >=prj/LICENSE;
+  cat <<EOI >=prj/LICENSE
     Copyright (c) 2014-2019 the build2 authors.
     EOI
-  $ga .;
+  $ga .
 
   # Note that the 'WARNING:' prefix is printed in bold red.
   #

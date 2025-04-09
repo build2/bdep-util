@@ -6,21 +6,21 @@
 : basic
 :
 {
-  $clone_prj;
+  $clone_prj
 
-  cat <<EOI >=prj/LICENSE;
+  cat <<EOI >=prj/LICENSE
     Copyright (c) 2014-2019 the build2 authors.
     EOI
-  $ga .;
+  $ga .
 
   # Note that the 'WARNING:' prefix is printed in bold red.
   #
-  $gc 2>>~%EOE%;
+  $gc 2>>~%EOE%
     %.+WARNING:.+ last copyright year in 'LICENSE' is 2019%
     EOE
 
-  date +"%Y" | set year;
-  cat <<"EOI" >=prj/LICENSE;
+  date +"%Y" | set year
+  cat <<"EOI" >=prj/LICENSE
     Copyright (c) 2014-$year the build2 authors.
     EOI
   $gc
